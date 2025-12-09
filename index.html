@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>히라가나 퀴즈 v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- ===== 스타일 영역 ===== -->
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      margin: 0 0 12px 0;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 8px 0 4px 0;
+    }
+
+    .direction-bar,
+    .group-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #ccc;
+      background: #fff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      background: #007aff;
+      border-color: #007aff;
+      color: #fff;
+    }
+
+    .score-panel {
+      text-align: center;
+      font-size: 13px;
+      color: #555;
+      margin: 8px 0;
+    }
+
+    .feedback {
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .feedback.correct {
+      background: #f6ffed;
+      border: 1px solid #b7eb8f;
+    }
+
+    .feedback.wrong {
+      background: #fff1f0;
+      border: 1px solid #ffa39e;
+    }
+
+    .question-card {
+      background: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 8px 0;
+      text-align: center;
+    }
+
+    .question-title {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .question-main {
+      font-size: 32px;
+      margin: 0;
+    }
+
+    .choices {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 8px 0 12px 0;
+    }
+
+    .choice-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    .choice-item input[type="radio"] {
+      transform: scale(1.2);
+    }
+
+    button.submit {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      background: #007aff;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button.submit:active { opacity: 0.8; }
+
+    .small {
+      font-size: 11px;
+      color: #777;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+
+<body>
+<div class="app">
+  <h1>히라가나 퀴즈 v0.1</h1>
+
+  <!-- ===== 문제 방향 선택 ===== -->
+  <section>
+    <div class="section-title">문제 방향</div>
+    <div class="direction-bar" id="direction-bar">
+      <button class="chip" data-direction="ko_to_hi">한글 → 히라가나</button>
+      <button class="chip" data-direction="hi_to_ko">히라가나 → 한글</button>
+    </div>
+  </section>
+
+  <!-- ===== 출제 행 선택 ===== -->
+  <section>
+    <div class="section-title">출제할 행 선택</div>
+    <div class="group-bar" id="group-bar"></div>
+    <div class="group-bar">
+      <button class="chip" id="btn-select-all">전체 선택</button>
+    </div>
+  </section>
+
+  <!-- ===== 점수 / 피드백 / 문제 / 보기 ===== -->
+  <section>
+    <div class="score-panel" id="score-panel">아직 푼 문제가 없습니다.</div>
+
+    <div id="feedback-container"></div>
+
+    <div class="question-card">
+      <div class="question-title" id="question-title"></div>
+      <p class="question-main" id="question-main"></p>
+    </div>
+
+    <form id="quiz-form">
+      <div class="choices" id="choices-container"></div>
+      <button type="submit" class="submit">제출</button>
+    </form>
+  </section>
+
+  <p class="small">
+    ※ v0.1: 객관식 4지선다, 행 선택 가능 버전입니다.<br>
+    데이터에는 히라가나 전체가 들어 있고, 위에서 원하는 행만 선택해서 공부할 수 있습니다.<br>
+    예) 나는 아/카/사/타만, 친구는 전체 선택해서 사용.
+  </p>
+</div>
+
+<!-- ===== 스크립트 영역 ===== -->
+<script type="module">
+  // ================================
+  // 0. 상수 및 데이터 정의
+  // ================================
+
+  /** 문제 방향 (한글→히라가나 / 히라가나→한글) */
+  const DIRECTION = {
+    KO_TO_HI: "ko_to_hi",
+    HI_TO_KO: "hi_to_ko",
+  };
+
+  /** 행 그룹 정의 */
+  const GROUPS = {
+    A:  { id: "a",  label: "아행" },
+    KA: { id: "ka", label: "카행" },
+    SA: { id: "sa", label: "사행" },
+    TA: { id: "ta", label: "타행" },
+    NA: { id: "na", label: "나행" },
+    HA: { id: "ha", label: "하행" },
+    MA: { id: "ma", label: "마행" },
+    YA: { id: "ya", label: "야행" },
+    RA: { id: "ra", label: "라행" },
+    WA: { id: "wa", label: "와/특수" }, // わ, を, ん
+  };
+
+  /** 히라가나 전체 목록 */
+  const HIRAGANA_LIST = [
+    // 아행
+    { ko: "아", hi: "あ", group: GROUPS.A.id },
+    { ko: "이", hi: "い", group: GROUPS.A.id },
+    { ko: "우", hi: "う", group: GROUPS.A.id },
+    { ko: "에", hi: "え", group: GROUPS.A.id },
+    { ko: "오", hi: "お", group: GROUPS.A.id },
+
+    // 카행
+    { ko: "카", hi: "か", group: GROUPS.KA.id },
+    { ko: "키", hi: "き", group: GROUPS.KA.id },
+    { ko: "쿠", hi: "く", group: GROUPS.KA.id },
+    { ko: "케", hi: "け", group: GROUPS.KA.id },
+    { ko: "코", hi: "こ", group: GROUPS.KA.id },
+
+    // 사행
+    { ko: "사", hi: "さ", group: GROUPS.SA.id },
+    { ko: "시", hi: "し", group: GROUPS.SA.id },
+    { ko: "스", hi: "す", group: GROUPS.SA.id },
+    { ko: "세", hi: "せ", group: GROUPS.SA.id },
+    { ko: "소", hi: "そ", group: GROUPS.SA.id },
+
+    // 타행
+    { ko: "타", hi: "た", group: GROUPS.TA.id },
+    { ko: "치", hi: "ち", group: GROUPS.TA.id },
+    { ko: "츠", hi: "つ", group: GROUPS.TA.id },
+    { ko: "테", hi: "て", group: GROUPS.TA.id },
+    { ko: "토", hi: "と", group: GROUPS.TA.id },
+
+    // 나행
+    { ko: "나", hi: "な", group: GROUPS.NA.id },
+    { ko: "니", hi: "に", group: GROUPS.NA.id },
+    { ko: "누", hi: "ぬ", group: GROUPS.NA.id },
+    { ko: "네", hi: "ね", group: GROUPS.NA.id },
+    { ko: "노", hi: "の", group: GROUPS.NA.id },
+
+    // 하행
+    { ko: "하", hi: "は", group: GROUPS.HA.id },
+    { ko: "히", hi: "ひ", group: GROUPS.HA.id },
+    { ko: "후", hi: "ふ", group: GROUPS.HA.id },
+    { ko: "헤", hi: "へ", group: GROUPS.HA.id },
+    { ko: "호", hi: "ほ", group: GROUPS.HA.id },
+
+    // 마행
+    { ko: "마", hi: "ま", group: GROUPS.MA.id },
+    { ko: "미", hi: "み", group: GROUPS.MA.id },
+    { ko: "무", hi: "む", group: GROUPS.MA.id },
+    { ko: "메", hi: "め", group: GROUPS.MA.id },
+    { ko: "모", hi: "も", group: GROUPS.MA.id },
+
+    // 야행
+    { ko: "야", hi: "や", group: GROUPS.YA.id },
+    { ko: "유", hi: "ゆ", group: GROUPS.YA.id },
+    { ko: "요", hi: "よ", group: GROUPS.YA.id },
+
+    // 라행
+    { ko: "라", hi: "ら", group: GROUPS.RA.id },
+    { ko: "리", hi: "り", group: GROUPS.RA.id },
+    { ko: "루", hi: "る", group: GROUPS.RA.id },
+    { ko: "레", hi: "れ", group: GROUPS.RA.id },
+    { ko: "로", hi: "ろ", group: GROUPS.RA.id },
+
+    // 와행 + 특수
+    { ko: "와",    hi: "わ", group: GROUPS.WA.id },
+    { ko: "오(를)", hi: "を", group: GROUPS.WA.id },
+    { ko: "응",    hi: "ん", group: GROUPS.WA.id },
+  ];
+
+  /** 전체 그룹 id 리스트 (전체 선택용) */
+  const ALL_GROUP_IDS = Object.values(GROUPS).map(g => g.id);
+
+  /** 기본 프리셋: 아/카/사/타 */
+  const BASIC_GROUP_PRESET = ["a", "ka", "sa", "ta"];
+
+  /** 보기 개수 (지금은 4지선다) */
+  const CHOICE_COUNT = 4;
+
+  // ================================
+  // 1. 상태(State)
+  // ================================
+
+  /** 현재 문제 방향 */
+  let currentDirection = DIRECTION.KO_TO_HI;
+
+  // 초기에는 아무 행도 선택하지 않은 상태
+  let enabledGroups = new Set();
+
+  /** 점수 및 통계 */
+  let score = 0;
+  let total = 0;
+
+  /** 마지막 문제의 정답/오답 정보 */
+  let lastFeedback = null;
+
+  /** 현재 문제 */
+  let currentQuestion = null;
+
+  // ================================
+  // 2. DOM 요소 캐싱
+  // ================================
+
+  const directionBarEl   = document.getElementById("direction-bar");
+  const groupBarEl       = document.getElementById("group-bar");
+  const selectAllBtnEl   = document.getElementById("btn-select-all");
+
+  const scorePanelEl       = document.getElementById("score-panel");
+  const feedbackContainerEl = document.getElementById("feedback-container");
+  const questionTitleEl    = document.getElementById("question-title");
+  const questionMainEl     = document.getElementById("question-main");
+  const choicesContainerEl = document.getElementById("choices-container");
+  const quizFormEl         = document.getElementById("quiz-form");
+
+  // ================================
+  // 3. 유틸 함수
+  // ================================
+
+  function randomChoice(array) {
+    return array[Math.floor(Math.random() * array.length)];
+  }
+
+  function shuffle(array) {
+    return array
+      .map(v => ({ v, r: Math.random() }))
+      .sort((a, b) => a.r - b.r)
+      .map(x => x.v);
+  }
+
+  function getCurrentPool() {
+    const groups = Array.from(enabledGroups);
+    return HIRAGANA_LIST.filter(i => groups.includes(i.group));
+  }
+
+  // ================================
+  // 4. 렌더링 함수
+  // ================================
+
+  function renderDirectionButtons() {
+    const buttons = directionBarEl.querySelectorAll(".chip");
+    buttons.forEach(btn => {
+      const dir = btn.dataset.direction;
+      btn.classList.toggle("active", dir === currentDirection);
+    });
+  }
+
+  function renderGroupButtons() {
+    groupBarEl.innerHTML = "";
+
+    Object.values(GROUPS).forEach(group => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip";
+      btn.textContent = group.label;
+      btn.dataset.groupId = group.id;
+
+      if (enabledGroups.has(group.id)) {
+        btn.classList.add("active");
+      }
+
+      btn.addEventListener("click", () => {
+        toggleGroup(group.id);
+      });
+
+      groupBarEl.appendChild(btn);
+    });
+  }
+
+  function renderScore() {
+    if (total === 0) {
+      scorePanelEl.textContent = "아직 푼 문제가 없습니다.";
+      return;
+    }
+    const rate = ((score / total) * 100).toFixed(1);
+    scorePanelEl.textContent = `점수: ${score} / ${total} (정답률: ${rate}%)`;
+  }
+
+  function renderFeedback() {
+    feedbackContainerEl.innerHTML = "";
+    if (!lastFeedback) return;
+
+    const div = document.createElement("div");
+    div.className = "feedback " + (lastFeedback.ok ? "correct" : "wrong");
+    div.textContent = lastFeedback.message;
+    feedbackContainerEl.appendChild(div);
+  }
+
+  function renderQuestion() {
+    if (!currentQuestion) return;
+
+    if (currentDirection === DIRECTION.KO_TO_HI) {
+      questionTitleEl.textContent = "다음 한글에 해당하는 히라가나는?";
+    } else {
+      questionTitleEl.textContent = "다음 히라가나에 해당하는 한국어 발음은?";
+    }
+
+    questionMainEl.textContent = currentQuestion.question;
+
+    choicesContainerEl.innerHTML = "";
+    currentQuestion.choices.forEach(choice => {
+      const label = document.createElement("label");
+      label.className = "choice-item";
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "choice";
+      input.value = choice;
+
+      const span = document.createElement("span");
+      span.textContent = choice;
+
+      label.appendChild(input);
+      label.appendChild(span);
+      choicesContainerEl.appendChild(label);
+    });
+  }
+
+  // ================================
+  // 5. 로직: 문제 생성 / 채점
+  // ================================
+
+  function generateQuestion() {
+    const pool = getCurrentPool();
+    if (pool.length === 0) {
+      return null;     // 출제할 게 없으면 null
+    }
+
+    const picked = randomChoice(pool);
+    let questionText, answerText, optionsPool;
+
+    if (currentDirection === DIRECTION.KO_TO_HI) {
+      questionText = picked.ko;
+      answerText = picked.hi;
+      optionsPool = pool.map(i => i.hi);
+    } else {
+      questionText = picked.hi;
+      answerText = picked.ko;
+      optionsPool = pool.map(i => i.ko);
+    }
+
+    const wrongOptions = shuffle(
+      optionsPool.filter(v => v !== answerText)
+    ).slice(0, CHOICE_COUNT - 1);
+
+    const choices = shuffle([answerText, ...wrongOptions]);
+
+    return { question: questionText, answer: answerText, choices };
+  }
+
+  function loadNewQuestion() {
+  currentQuestion = generateQuestion();
+
+  if (!currentQuestion) {
+    // 출제할 문자가 없을 때 (행이 하나도 안 켜져 있을 때)
+    questionTitleEl.textContent = "먼저 출제할 행을 선택해주세요.";
+    questionMainEl.textContent  = "";
+    choicesContainerEl.innerHTML = "";
+    return;
+  }
+
+  renderQuestion();
+}
+
+  // ================================
+  // 6. 이벤트 핸들러
+  // ================================
+
+  function toggleGroup(groupId) {
+    if (enabledGroups.has(groupId)) {
+      enabledGroups.delete(groupId);     // 자유롭게 On/Off
+      } else {
+      enabledGroups.add(groupId);
+    }
+
+    renderGroupButtons();
+    loadNewQuestion();
+  }
+
+  function handleDirectionClick(event) {
+    const target = event.target.closest(".chip");
+    if (!target) return;
+
+    const dir = target.dataset.direction;
+    if (!dir) return;
+
+    currentDirection = dir;
+    renderDirectionButtons();
+    loadNewQuestion();
+  }
+
+  function handleSelectAllClick() {
+  const allSelected = ALL_GROUP_IDS.every(id => enabledGroups.has(id));
+
+  if (allSelected) {
+    // 전체가 이미 선택된 상태 → OFF로 전부 끄기
+    enabledGroups = new Set();
+  } else {
+    // 전체가 선택되지 않은 상태 → 전부 ON
+    enabledGroups = new Set(ALL_GROUP_IDS);
+  }
+
+  renderGroupButtons();
+  loadNewQuestion();
+}
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!currentQuestion) return;
+
+    const checked = quizFormEl.querySelector("input[name='choice']:checked");
+    if (!checked) {
+      alert("보기 하나를 선택해주세요.");
+      return;
+    }
+
+    const selected = checked.value;
+    const correct = currentQuestion.answer;
+
+    total += 1;
+    if (selected === correct) {
+      score += 1;
+      lastFeedback = { ok: true, message: "정답입니다! ✅" };
+    } else {
+      lastFeedback = {
+        ok: false,
+        message: `오답입니다. ❌ 정답은 '${correct}' 입니다.`,
+      };
+    }
+
+    renderScore();
+    renderFeedback();
+    loadNewQuestion();
+  }
+
+  // ================================
+  // 7. 초기화
+  // ================================
+
+  function init() {
+    // 방향 버튼
+    directionBarEl.addEventListener("click", handleDirectionClick);
+    renderDirectionButtons();
+
+    // 그룹 버튼
+    renderGroupButtons();
+
+    // 프리셋 버튼
+    selectAllBtnEl.addEventListener("click", handleSelectAllClick);
+
+    // 제출 이벤트
+    quizFormEl.addEventListener("submit", handleSubmit);
+
+    // 초기 상태 렌더
+    renderScore();
+    loadNewQuestion();
+  }
+
+  init();
+</script>
+</body>
+</html>
