@@ -5,6 +5,9 @@
   <title>히라가나 퀴즈</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <!-- ================================
+       0. 기본 & 다크모드 스타일
+       ================================ -->
   <style>
     * { box-sizing: border-box; }
 
@@ -16,11 +19,12 @@
       transition: background 0.3s, color 0.3s;
     }
 
-    /* 🌙 다크모드 스타일 */
+    /* 🌙 다크모드: body에 .dark 클래스가 붙었을 때 */
     body.dark {
       background: #1e1e1e;
       color: #e5e5e5;
     }
+
     body.dark .question-card,
     body.dark .choice-item,
     body.dark .chip,
@@ -29,20 +33,26 @@
       color: #f0f0f0;
       border-color: #555;
     }
+
     body.dark .chip.active {
       background: #007aff;
       border-color: #007aff;
       color: #fff;
     }
+
     body.dark .feedback.correct {
       background: #233c25;
       border-color: #4caf50;
     }
+
     body.dark .feedback.wrong {
       background: #402626;
       border-color: #ef5350;
     }
 
+    /* ================================
+       1. 레이아웃 & 공통 요소
+       ================================ */
     .app {
       max-width: 480px;
       margin: 0 auto;
@@ -52,22 +62,6 @@
     h1 {
       text-align: center;
       margin: 0 0 12px 0;
-    }
-
-    /* 다크모드 토글 버튼 */
-    .dark-toggle {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 12px;
-    }
-    .dark-toggle button {
-      padding: 6px 12px;
-      border-radius: 8px;
-      border: none;
-      background: #007aff;
-      color: #fff;
-      cursor: pointer;
-      font-size: 14px;
     }
 
     .section-title {
@@ -176,11 +170,30 @@
 
     button.submit:active { opacity: 0.8; }
 
+    /* ================================
+       2. 다크모드 토글 버튼
+       ================================ */
+    .dark-toggle {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .dark-toggle button {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: none;
+      background: #007aff;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
   </style>
 </head>
 
 <body>
 <div class="app">
+  <!-- 헤더: 버전 텍스트 제거 -->
   <h1>히라가나 퀴즈</h1>
 
   <!-- 🌙 다크모드 토글 버튼 -->
@@ -188,6 +201,7 @@
     <button id="darkModeBtn">🌙 다크모드</button>
   </div>
 
+  <!-- 문제 방향 선택 섹션 -->
   <section>
     <div class="section-title">문제 방향</div>
     <div class="direction-bar" id="direction-bar">
@@ -196,6 +210,7 @@
     </div>
   </section>
 
+  <!-- 출제할 행 선택 섹션 -->
   <section>
     <div class="section-title">출제할 행 선택</div>
     <div class="group-bar" id="group-bar"></div>
@@ -204,8 +219,9 @@
     </div>
   </section>
 
+  <!-- 점수 / 피드백 / 문제 / 보기 섹션 -->
   <section>
-    <div class="score-panel" id="score-panel">아직 푼 문제가 없습니다.</div>
+    <div class="score-panel" id="score-panel"></div>
     <div id="feedback-container"></div>
 
     <div class="question-card">
@@ -220,18 +236,23 @@
   </section>
 </div>
 
+<!-- ================================
+     스크립트 영역
+     ================================ -->
 <script type="module">
-
-  /* ========== 🌙 다크모드 기능 ========== */
+  // ====================================
+  // 0. 다크모드 토글 (v0.2 추가 기능)
+  // ====================================
   const darkModeBtn = document.getElementById("darkModeBtn");
 
-  // 저장된 모드 불러오기
-  let savedTheme = localStorage.getItem("theme");
+  // 저장된 테마 불러오기 (localStorage 사용)
+  const savedTheme = localStorage.getItem("theme");
   if (savedTheme === "dark") {
     document.body.classList.add("dark");
     darkModeBtn.textContent = "☀️ 라이트모드";
   }
 
+  // 버튼 클릭 시 라이트/다크 전환
   darkModeBtn.addEventListener("click", () => {
     document.body.classList.toggle("dark");
 
@@ -244,15 +265,22 @@
     }
   });
 
-  /* ============================ 기존 JS 코드 (v0.1 기능 유지) ============================ */
+  // ====================================
+  // 1. 상수 및 데이터 정의
+  // ====================================
 
+  /** 문제 방향 (한글 → 히라가나 / 히라가나 → 한글) */
   const DIRECTION = {
     KO_TO_HI: "ko_to_hi",
     HI_TO_KO: "hi_to_ko",
   };
 
+  /** 최대 문제 수 (v0.3) */
+  const MAX_QUESTIONS = 20;
+
+  /** 행 그룹 정의 */
   const GROUPS = {
-    A:  { id: "a", label: "아행" },
+    A:  { id: "a",  label: "아행" },
     KA: { id: "ka", label: "카행" },
     SA: { id: "sa", label: "사행" },
     TA: { id: "ta", label: "타행" },
@@ -264,98 +292,176 @@
     WA: { id: "wa", label: "와/특수" },
   };
 
+  /** 히라가나 전체 목록 */
   const HIRAGANA_LIST = [
+    // 아행
     { ko: "아", hi: "あ", group: "a" },
     { ko: "이", hi: "い", group: "a" },
     { ko: "우", hi: "う", group: "a" },
     { ko: "에", hi: "え", group: "a" },
     { ko: "오", hi: "お", group: "a" },
 
+    // 카행
     { ko: "카", hi: "か", group: "ka" },
     { ko: "키", hi: "き", group: "ka" },
     { ko: "쿠", hi: "く", group: "ka" },
     { ko: "케", hi: "け", group: "ka" },
     { ko: "코", hi: "こ", group: "ka" },
 
+    // 사행
     { ko: "사", hi: "さ", group: "sa" },
     { ko: "시", hi: "し", group: "sa" },
     { ko: "스", hi: "す", group: "sa" },
     { ko: "세", hi: "せ", group: "sa" },
     { ko: "소", hi: "そ", group: "sa" },
 
+    // 타행
     { ko: "타", hi: "た", group: "ta" },
     { ko: "치", hi: "ち", group: "ta" },
     { ko: "츠", hi: "つ", group: "ta" },
     { ko: "테", hi: "て", group: "ta" },
     { ko: "토", hi: "と", group: "ta" },
 
+    // 나행
     { ko: "나", hi: "な", group: "na" },
     { ko: "니", hi: "に", group: "na" },
     { ko: "누", hi: "ぬ", group: "na" },
     { ko: "네", hi: "ね", group: "na" },
     { ko: "노", hi: "の", group: "na" },
 
+    // 하행
     { ko: "하", hi: "は", group: "ha" },
     { ko: "히", hi: "ひ", group: "ha" },
     { ko: "후", hi: "ふ", group: "ha" },
     { ko: "헤", hi: "へ", group: "ha" },
     { ko: "호", hi: "ほ", group: "ha" },
 
+    // 마행
     { ko: "마", hi: "ま", group: "ma" },
     { ko: "미", hi: "み", group: "ma" },
     { ko: "무", hi: "む", group: "ma" },
     { ko: "메", hi: "め", group: "ma" },
     { ko: "모", hi: "も", group: "ma" },
 
+    // 야행
     { ko: "야", hi: "や", group: "ya" },
     { ko: "유", hi: "ゆ", group: "ya" },
     { ko: "요", hi: "よ", group: "ya" },
 
+    // 라행
     { ko: "라", hi: "ら", group: "ra" },
     { ko: "리", hi: "り", group: "ra" },
     { ko: "루", hi: "る", group: "ra" },
     { ko: "레", hi: "れ", group: "ra" },
     { ko: "로", hi: "ろ", group: "ra" },
 
-    { ko: "와", hi: "わ", group: "wa" },
+    // 와행 + 특수
+    { ko: "와",    hi: "わ", group: "wa" },
     { ko: "오(를)", hi: "を", group: "wa" },
-    { ko: "응", hi: "ん", group: "wa" },
+    { ko: "응",    hi: "ん", group: "wa" },
   ];
 
+  /** 전체 그룹 id 리스트 (전체 선택용) */
   const ALL_GROUP_IDS = Object.values(GROUPS).map(g => g.id);
+
+  /** 보기 개수 (4지선다) */
   const CHOICE_COUNT = 4;
 
+  // ====================================
+  // 2. 상태(State)
+  // ====================================
+
+  /** 현재 문제 방향 */
   let currentDirection = DIRECTION.KO_TO_HI;
-  let enabledGroups = new Set();
+
+  /** 현재 선택된 행들 (group id Set) */
+  let enabledGroups = new Set();   // 초기에는 모든 행 OFF
+
+  /** 점수 및 통계 */
   let score = 0;
   let total = 0;
+
+  /** 퀴즈 종료 여부 (v0.3) */
+  let isFinished = false;
+
+  /** 마지막 문제의 정답/오답 정보 */
   let lastFeedback = null;
+
+  /** 현재 문제 */
   let currentQuestion = null;
 
-  const directionBarEl = document.getElementById("direction-bar");
-  const groupBarEl = document.getElementById("group-bar");
-  const selectAllBtnEl = document.getElementById("btn-select-all");
-  const scorePanelEl = document.getElementById("score-panel");
+  // ====================================
+  // 3. DOM 요소 캐싱
+  // ====================================
+
+  const directionBarEl      = document.getElementById("direction-bar");
+  const groupBarEl          = document.getElementById("group-bar");
+  const selectAllBtnEl      = document.getElementById("btn-select-all");
+  const scorePanelEl        = document.getElementById("score-panel");
   const feedbackContainerEl = document.getElementById("feedback-container");
-  const questionTitleEl = document.getElementById("question-title");
-  const questionMainEl = document.getElementById("question-main");
-  const choicesContainerEl = document.getElementById("choices-container");
-  const quizFormEl = document.getElementById("quiz-form");
+  const questionTitleEl     = document.getElementById("question-title");
+  const questionMainEl      = document.getElementById("question-main");
+  const choicesContainerEl  = document.getElementById("choices-container");
+  const quizFormEl          = document.getElementById("quiz-form");
+
+  // ====================================
+  // 4. 설정 저장/불러오기 (localStorage)
+  // ====================================
+
+  function saveSettings() {
+    try {
+      const groupsArray = Array.from(enabledGroups);
+      localStorage.setItem("enabledGroups", JSON.stringify(groupsArray));
+      localStorage.setItem("direction", currentDirection);
+    } catch (e) {
+      // 저장 실패 시 조용히 무시
+    }
+  }
+
+  function loadSettingsFromStorage() {
+    // 행 설정
+    try {
+      const groupsStr = localStorage.getItem("enabledGroups");
+      if (groupsStr) {
+        const arr = JSON.parse(groupsStr);
+        if (Array.isArray(arr)) {
+          const valid = arr.filter(id => ALL_GROUP_IDS.includes(id));
+          enabledGroups = new Set(valid);
+        }
+      }
+    } catch (e) {}
+
+    // 방향 설정
+    const savedDirection = localStorage.getItem("direction");
+    if (savedDirection === DIRECTION.KO_TO_HI || savedDirection === DIRECTION.HI_TO_KO) {
+      currentDirection = savedDirection;
+    }
+  }
+
+  // ====================================
+  // 5. 유틸 함수
+  // ====================================
 
   function randomChoice(array) {
     return array[Math.floor(Math.random() * array.length)];
   }
 
   function shuffle(array) {
-    return array.map(v => ({ v, r: Math.random() }))
+    return array
+      .map(v => ({ v, r: Math.random() }))
       .sort((a, b) => a.r - b.r)
       .map(x => x.v);
   }
 
+  /** 현재 선택된 행에 해당하는 히라가나들만 추출 */
   function getCurrentPool() {
     const groups = Array.from(enabledGroups);
     return HIRAGANA_LIST.filter(i => groups.includes(i.group));
   }
+
+  // ====================================
+  // 6. 렌더링 함수
+  // ====================================
 
   function renderDirectionButtons() {
     const buttons = directionBarEl.querySelectorAll(".chip");
@@ -375,7 +481,9 @@
       btn.textContent = group.label;
       btn.dataset.groupId = group.id;
 
-      if (enabledGroups.has(group.id)) btn.classList.add("active");
+      if (enabledGroups.has(group.id)) {
+        btn.classList.add("active");
+      }
 
       btn.addEventListener("click", () => toggleGroup(group.id));
       groupBarEl.appendChild(btn);
@@ -384,11 +492,16 @@
 
   function renderScore() {
     if (total === 0) {
-      scorePanelEl.textContent = "아직 푼 문제가 없습니다.";
+      scorePanelEl.textContent = `총 ${MAX_QUESTIONS}문제 중 아직 푼 문제가 없습니다.`;
       return;
     }
     const rate = ((score / total) * 100).toFixed(1);
-    scorePanelEl.textContent = `점수: ${score} / ${total} (정답률: ${rate}%)`;
+    const remain = MAX_QUESTIONS - total;
+    const remainText =
+      total >= MAX_QUESTIONS
+        ? "모든 문제를 풀었습니다."
+        : `남은 문제: ${remain}문제`;
+    scorePanelEl.textContent = `점수: ${score} / ${total} (정답률: ${rate}%) · ${remainText}`;
   }
 
   function renderFeedback() {
@@ -401,21 +514,29 @@
     feedbackContainerEl.appendChild(div);
   }
 
+  /** 현재 문제 화면 렌더링 */
   function renderQuestion() {
+    // 퀴즈 종료 상태일 때는 건드리지 않음
+    if (isFinished) return;
+
+    // 아직 출제할 행이 없을 때
     if (!currentQuestion) {
       questionTitleEl.textContent = "출제할 행을 선택해주세요.";
-      questionMainEl.textContent = "";
+      questionMainEl.textContent  = "";
       choicesContainerEl.innerHTML = "";
       return;
     }
 
+    // 문제 제목
     questionTitleEl.textContent =
       currentDirection === DIRECTION.KO_TO_HI
         ? "다음 한글에 해당하는 히라가나는?"
         : "다음 히라가나에 해당하는 한국어 발음은?";
 
+    // 문제 본문
     questionMainEl.textContent = currentQuestion.question;
 
+    // 보기 렌더링
     choicesContainerEl.innerHTML = "";
     currentQuestion.choices.forEach(choice => {
       const label = document.createElement("label");
@@ -435,21 +556,28 @@
     });
   }
 
+  // ====================================
+  // 7. 문제 생성 / 퀴즈 종료 처리
+  // ====================================
+
+  /** 새로운 문제 생성 */
   function generateQuestion() {
     const pool = getCurrentPool();
-    if (pool.length === 0) return null;
+    if (pool.length === 0) {
+      return null;
+    }
 
     const picked = randomChoice(pool);
     let questionText, answerText, optionsPool;
 
     if (currentDirection === DIRECTION.KO_TO_HI) {
       questionText = picked.ko;
-      answerText = picked.hi;
-      optionsPool = pool.map(i => i.hi);
+      answerText   = picked.hi;
+      optionsPool  = pool.map(i => i.hi);
     } else {
       questionText = picked.hi;
-      answerText = picked.ko;
-      optionsPool = pool.map(i => i.ko);
+      answerText   = picked.ko;
+      optionsPool  = pool.map(i => i.ko);
     }
 
     const wrongOptions = shuffle(
@@ -461,42 +589,86 @@
     return { question: questionText, answer: answerText, choices };
   }
 
+  /** 새 문제 로딩 후 렌더링 */
   function loadNewQuestion() {
+    if (isFinished) return; // 이미 종료 상태면 새 문제 안 냄
     currentQuestion = generateQuestion();
     renderQuestion();
   }
 
+  /** 퀴즈 종료 처리 (20문제 다 풀면) */
+  function finishQuiz() {
+    isFinished = true;
+
+    const finalRate = total
+      ? ((score / total) * 100).toFixed(1)
+      : "0.0";
+
+    lastFeedback = {
+      ok: true,
+      message: `모든 ${MAX_QUESTIONS}문제를 다 풀었습니다. 최종 점수: ${score} / ${total} (정답률: ${finalRate}%).`,
+    };
+
+    renderScore();
+    renderFeedback();
+
+    questionTitleEl.textContent = "퀴즈 종료";
+    questionMainEl.textContent  = "다시 풀려면 페이지를 새로고침하세요.";
+    choicesContainerEl.innerHTML = "";
+  }
+
+  // ====================================
+  // 8. 이벤트 핸들러
+  // ====================================
+
+  /** 행 버튼 토글 */
   function toggleGroup(groupId) {
     if (enabledGroups.has(groupId)) {
       enabledGroups.delete(groupId);
     } else {
       enabledGroups.add(groupId);
     }
+
+    saveSettings();
     renderGroupButtons();
     loadNewQuestion();
   }
 
-  directionBarEl.addEventListener("click", (event) => {
+  /** 방향 버튼 클릭 핸들러 */
+  function handleDirectionClick(event) {
     const target = event.target.closest(".chip");
     if (!target) return;
 
-    currentDirection = target.dataset.direction;
+    const dir = target.dataset.direction;
+    if (!dir) return;
+
+    currentDirection = dir;
+    saveSettings();
     renderDirectionButtons();
     loadNewQuestion();
-  });
+  }
 
-  selectAllBtnEl.addEventListener("click", () => {
+  /** 전체 선택 버튼 (토글) */
+  function handleSelectAllClick() {
     const allSelected = ALL_GROUP_IDS.every(id => enabledGroups.has(id));
 
-    enabledGroups = allSelected ? new Set() : new Set(ALL_GROUP_IDS);
+    if (allSelected) {
+      // 전부 선택된 상태였다면 → 전부 해제
+      enabledGroups = new Set();
+    } else {
+      // 하나라도 꺼져 있으면 → 전부 선택
+      enabledGroups = new Set(ALL_GROUP_IDS);
+    }
 
+    saveSettings();
     renderGroupButtons();
     loadNewQuestion();
-  });
+  }
 
-  quizFormEl.addEventListener("submit", (event) => {
+  /** 제출(채점) 핸들러 */
+  function handleSubmit(event) {
     event.preventDefault();
-    if (!currentQuestion) return;
+    if (!currentQuestion || isFinished) return;
 
     const checked = quizFormEl.querySelector("input[name='choice']:checked");
     if (!checked) {
@@ -505,7 +677,7 @@
     }
 
     const selected = checked.value;
-    const correct = currentQuestion.answer;
+    const correct  = currentQuestion.answer;
 
     total += 1;
     if (selected === correct) {
@@ -518,12 +690,30 @@
       };
     }
 
-    renderScore();
-    renderFeedback();
-    loadNewQuestion();
-  });
+    // 20문제 다 풀었으면 종료 처리
+    if (total >= MAX_QUESTIONS) {
+      finishQuiz();
+    } else {
+      renderScore();
+      renderFeedback();
+      loadNewQuestion();
+    }
+  }
+
+  // ====================================
+  // 9. 초기화
+  // ====================================
 
   function init() {
+    // 저장된 설정 불러오기 (행 + 방향)
+    loadSettingsFromStorage();
+
+    // 이벤트 등록
+    directionBarEl.addEventListener("click", handleDirectionClick);
+    selectAllBtnEl.addEventListener("click", handleSelectAllClick);
+    quizFormEl.addEventListener("submit", handleSubmit);
+
+    // 초기 렌더링
     renderDirectionButtons();
     renderGroupButtons();
     renderScore();
@@ -531,8 +721,6 @@
   }
 
   init();
-
 </script>
 </body>
 </html>
-
